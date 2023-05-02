@@ -9,16 +9,20 @@ import graphtaint
 import os 
 import pandas as pd 
 import numpy as np 
+from logging_module import giveMeLoggingObject
 
 def getYAMLFiles(path_to_dir):
-    valid_  = [] 
-    for root_, dirs, files_ in os.walk( path_to_dir ):
-       for file_ in files_:
-           full_p_file = os.path.join(root_, file_)
-           if(os.path.exists(full_p_file)):
-             if (full_p_file.endswith( constants.YML_EXTENSION  )  or full_p_file.endswith( constants.YAML_EXTENSION  )  ):
-               valid_.append(full_p_file)
-    return valid_ 
+    try:
+        valid_  = [] 
+        for root_, dirs, files_ in os.walk( path_to_dir ):
+            for file_ in files_:
+                full_p_file = os.path.join(root_, file_)
+                if(os.path.exists(full_p_file)):
+                    if (full_p_file.endswith( constants.YML_EXTENSION  )  or full_p_file.endswith( constants.YAML_EXTENSION  )  ):
+                        valid_.append(full_p_file)
+        return valid_ 
+    except:
+        giveMeLoggingObject()
 
 def isValidUserName(uName): 
     valid = True
@@ -168,14 +172,17 @@ def scanForOverPrivileges(script_path):
     return privi_dict_return 
 
 def getItemFromSecret( dict_sec, pos ): 
-    dic2ret = {}
-    cnt     = 0 
-    for key_name , key_tup in dict_sec.items():
-        secret_data_list = key_tup[pos]
-        for data_ in secret_data_list: 
-            dic2ret[cnt] = (key_name, data_)
-            cnt          += 1
-    return dic2ret
+    try:
+        dic2ret = {}
+        cnt     = 0 
+        for key_name , key_tup in dict_sec.items():
+            secret_data_list = key_tup[pos]
+            for data_ in secret_data_list: 
+                dic2ret[cnt] = (key_name, data_)
+                cnt          += 1
+        return dic2ret
+    except:
+        giveMeLoggingObject()
 
 
 def scanSingleManifest( path_to_script ):
@@ -251,88 +258,93 @@ def scanSingleManifest( path_to_script ):
 
 
 def scanForHTTP( path2script ):
-    sh_files_configmaps = {} 
-    http_count = 0 
-    if parser.checkIfValidK8SYaml( path2script ) or parser.checkIfValidHelm( path2script ):
-        dict_as_list = parser.loadMultiYAML( path2script )
-        yaml_d       = parser.getSingleDict4MultiDocs( dict_as_list )
-        all_vals     = list (parser.getValuesRecursively( yaml_d )  )
-        all_vals     = [x_ for x_ in all_vals if isinstance(x_, str) ] 
-        for val_ in all_vals:
-            # if (constants.HTTP_KW in val_ ) and ( (constants.WWW_KW in val_) and (constants.ORG_KW in val_) ):
-            if (constants.HTTP_KW in val_ ) :
-                key_lis   = []
-                parser.getKeyRecursively(yaml_d, key_lis) 
-                '''
-                if you are using `parser.getKeyRecursively` to get all keys , you need to do some trnasformation to get the key names 
-                as the output is a list of tuples so, `[(k1, v1), (k2, v2), (k3, v3)]`
-                '''
-                just_keys = [x_[0] for x_ in key_lis] 
-                if ( constants.SPEC_KW in just_keys ):
+    try:
+        sh_files_configmaps = {} 
+        http_count = 0 
+        if parser.checkIfValidK8SYaml( path2script ) or parser.checkIfValidHelm( path2script ):
+            dict_as_list = parser.loadMultiYAML( path2script )
+            yaml_d       = parser.getSingleDict4MultiDocs( dict_as_list )
+            all_vals     = list (parser.getValuesRecursively( yaml_d )  )
+            all_vals     = [x_ for x_ in all_vals if isinstance(x_, str) ] 
+            for val_ in all_vals:
+                # if (constants.HTTP_KW in val_ ) and ( (constants.WWW_KW in val_) and (constants.ORG_KW in val_) ):
+                if (constants.HTTP_KW in val_ ) :
+                    key_lis   = []
+                    parser.getKeyRecursively(yaml_d, key_lis) 
                     '''
-                    this branch is for HTTP values coming from Deplyoment manifests  
-                    '''                    
-                    http_count += 1 
-                    sh_files_configmaps[http_count] =  val_ 
-                elif( parser.checkIfValidHelm( path2script ) ):
+                    if you are using `parser.getKeyRecursively` to get all keys , you need to do some trnasformation to get the key names 
+                    as the output is a list of tuples so, `[(k1, v1), (k2, v2), (k3, v3)]`
                     '''
-                    this branch is for HTTP values coming from Values.yaml in HELM charts  
-                    '''
-                    http_count += 1 
-                    matching_keys = parser.keyMiner(yaml_d, val_)
-                    key_ = matching_keys[-1]  
-                    infected_list = graphtaint.mineViolationGraph(path2script, yaml_d, val_, key_) 
-                    sh_files_configmaps[http_count] = infected_list
-                else: 
-                    '''
-                    this branch is for HTTP values coming from ConfigMaps 
-                    '''                    
-                    val_holder = [] 
-                    parser.getValsFromKey(yaml_d, constants.KIND_KEY_NAME, val_holder)
-                    if ( constants.CONFIGMAP_KW in val_holder ):
+                    just_keys = [x_[0] for x_ in key_lis] 
+                    if ( constants.SPEC_KW in just_keys ):
+                        '''
+                        this branch is for HTTP values coming from Deplyoment manifests  
+                        '''                    
                         http_count += 1 
-                        infected_list = graphtaint.getTaintsFromConfigMaps( path2script  ) 
+                        sh_files_configmaps[http_count] =  val_ 
+                    elif( parser.checkIfValidHelm( path2script ) ):
+                        '''
+                        this branch is for HTTP values coming from Values.yaml in HELM charts  
+                        '''
+                        http_count += 1 
+                        matching_keys = parser.keyMiner(yaml_d, val_)
+                        key_ = matching_keys[-1]  
+                        infected_list = graphtaint.mineViolationGraph(path2script, yaml_d, val_, key_) 
                         sh_files_configmaps[http_count] = infected_list
-                        # print('ASI_MAMA:', sh_files_configmaps) 
-                        # print( val_holder )
-                        # print(val_)
-                        # print(just_keys)  
-    
-    # print(sh_files_configmaps) 
-    return sh_files_configmaps 
+                    else: 
+                        '''
+                        this branch is for HTTP values coming from ConfigMaps 
+                        '''                    
+                        val_holder = [] 
+                        parser.getValsFromKey(yaml_d, constants.KIND_KEY_NAME, val_holder)
+                        if ( constants.CONFIGMAP_KW in val_holder ):
+                            http_count += 1 
+                            infected_list = graphtaint.getTaintsFromConfigMaps( path2script  ) 
+                            sh_files_configmaps[http_count] = infected_list
+                            # print('ASI_MAMA:', sh_files_configmaps) 
+                            # print( val_holder )
+                            # print(val_)
+                            # print(just_keys)  
+        
+        # print(sh_files_configmaps) 
+        return sh_files_configmaps
+    except:
+        giveMeLoggingObject()
 
 def scanForMissingSecurityContext(path_scrpt):
-    dic, lis   = {}, []
-    if ( parser.checkIfValidK8SYaml( path_scrpt )  ): 
-        cnt = 0 
-        dict_as_list = parser.loadMultiYAML( path_scrpt )
-        yaml_di      = parser.getSingleDict4MultiDocs( dict_as_list )        
-        key_lis = [] 
-        parser.getKeyRecursively(yaml_di, key_lis)
-        yaml_values = list( parser.getValuesRecursively(yaml_di) )
-        '''
-        if you are using `parser.getKeyRecursively` to get all keys , you need to do some trnasformation to get the key names 
-        as the output is a list of tuples so, `[(k1, v1), (k2, v2), (k3, v3)]`
-        '''
-        real_key_lis = [x_[0] for x_ in key_lis]
-        # print(real_key_lis) 
-        if (constants.SECU_CONT_KW  not in real_key_lis)  and ( constants.CONTAINER_KW in real_key_lis ): 
-            occurrences = real_key_lis.count( constants.CONTAINER_KW )
-            for _ in range( occurrences ):
-                prop_value = constants.YAML_SKIPPING_TEXT
-                # if ( constants.DEPLOYMENT_KW in yaml_values ) : 
-                #     prop_value = constants.DEPLOYMENT_KW
-                #     lis.append( prop_value )
-                if ( constants.POD_KW in yaml_values ) :
-                    pod_kw_lis = parser.keyMiner(  yaml_di, constants.POD_KW  )
-                    if ( constants.KIND_KEY_NAME in pod_kw_lis ):
-                        cnt += 1 
-                        prop_value = constants.POD_KW 
-                        lis.append( prop_value )
-                        dic[ cnt ] = lis
-    # print(dic) 
-    return dic 
-
+    try:
+        dic, lis   = {}, []
+        if ( parser.checkIfValidK8SYaml( path_scrpt )  ): 
+            cnt = 0 
+            dict_as_list = parser.loadMultiYAML( path_scrpt )
+            yaml_di      = parser.getSingleDict4MultiDocs( dict_as_list )        
+            key_lis = []
+            parser.getKeyRecursively(yaml_di, key_lis)
+            yaml_values = list( parser.getValuesRecursively(yaml_di) )
+            '''
+            if you are using `parser.getKeyRecursively` to get all keys , you need to do some trnasformation to get the key names
+            as the output is a list of tuples so, `[(k1, v1), (k2, v2), (k3, v3)]`
+            '''
+            real_key_lis = [x_[0] for x_ in key_lis]
+            # print(real_key_lis)
+            if (constants.SECU_CONT_KW  not in real_key_lis)  and ( constants.CONTAINER_KW in real_key_lis ):
+                occurrences = real_key_lis.count( constants.CONTAINER_KW )
+                for _ in range( occurrences ):
+                    prop_value = constants.YAML_SKIPPING_TEXT
+                    # if ( constants.DEPLOYMENT_KW in yaml_values ) :
+                    #     prop_value = constants.DEPLOYMENT_KW
+                    #     lis.append( prop_value )
+                    if ( constants.POD_KW in yaml_values ) :
+                        pod_kw_lis = parser.keyMiner(  yaml_di, constants.POD_KW  )
+                        if ( constants.KIND_KEY_NAME in pod_kw_lis ):
+                            cnt += 1
+                            prop_value = constants.POD_KW
+                            lis.append( prop_value )
+                            dic[ cnt ] = lis
+        # print(dic)
+        return dic
+    except:
+        giveMeLoggingObject()
 
 def scanForDefaultNamespace(path_scrpt):
     dic, lis   = {}, []
@@ -760,7 +772,7 @@ if __name__ == '__main__':
     # no_reso_yaml = '/Users/arahman/K8S_REPOS/GITHUB_REPOS/istio-handson/deployment/articles.yaml'
     # no_reso_dict = scanForHTTP(no_reso_yaml)
 
-    # cap_sys_module_yaml = 'TEST_ARTIFACTS/cap-module-ostk.yaml'
-    # cap_sys_module_dic  = scanForCAPMODULE ( cap_sys_module_yaml )   
+    cap_sys_module_yaml = 'TEST_ARTIFACTS/cap-module-ostk.yaml'
+    cap_sys_module_dic  = scanForCAPMODULE ( cap_sys_module_yaml )   
 
-    print(cap_sys_module_dic)  
+    print(cap_sys_module_dic)
