@@ -7,16 +7,20 @@ import constants
 import parser 
 import os 
 from itertools import combinations
+from logging_module import giveMeLoggingObject
 
 def getYAMLFiles(path_to_dir):
-    valid_  = [] 
-    for root_, dirs, files_ in os.walk( path_to_dir ):
-       for file_ in files_:
-           full_p_file = os.path.join(root_, file_)
-           if(os.path.exists(full_p_file)):
-             if (full_p_file.endswith( constants.YAML_EXTENSION  ) or full_p_file.endswith( constants.YML_EXTENSION  )  ):
-               valid_.append(full_p_file)
-    return valid_ 
+    try:
+        valid_  = []
+        for root_, dirs, files_ in os.walk( path_to_dir ):
+            for file_ in files_:
+                full_p_file = os.path.join(root_, file_)
+                if(os.path.exists(full_p_file)):
+                    if (full_p_file.endswith( constants.YAML_EXTENSION  ) or full_p_file.endswith( constants.YML_EXTENSION  )  ):
+                        valid_.append(full_p_file)
+        return valid_
+    except:
+        giveMeLoggingObject()
 
 def constructHelmString(hiera_tuple): 
     str2ret  = constants.YAML_SKIPPING_TEXT 
